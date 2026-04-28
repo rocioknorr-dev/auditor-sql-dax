@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Auditor SQL / DAX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg2: #f7f7f5;
+    --bg3: #f0efeb;
+    --text: #1a1a18;
+    --text2: #6b6b67;
+    --text3: #9b9b96;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.18);
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  body { font-family: 'Syne', sans-serif; background: var(--bg3); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+
+  .container { max-width: 860px; margin: 0 auto; }
+
+  .header { display: flex; align-items: center; gap: 14px; margin-bottom: 2rem; }
+  .logo { width: 36px; height: 36px; background: var(--text); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .logo svg { width: 20px; height: 20px; fill: white; }
+  .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+  .header p { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+  .api-key-bar { background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px; }
+  .api-key-bar label { font-size: 12px; font-weight: 500; color: var(--text2); white-space: nowrap; font-family: 'JetBrains Mono', monospace; }
+  .api-key-bar input { flex: 1; font-size: 13px; padding: 6px 10px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg2); color: var(--text); outline: none; font-family: 'JetBrains Mono', monospace; }
+  .api-key-bar input:focus { border-color: var(--border2); }
+  .api-key-note { font-size: 11px; color: var(--text3); white-space: nowrap; }
+
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.5rem; }
+
+  .tabs { display: flex; border-bottom: 0.5px solid var(--border2); margin-bottom: 1.5rem; }
+  .tab { padding: 8px 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: none; color: var(--text2); border-bottom: 2px solid transparent; margin-bottom: -0.5px; transition: all 0.15s; font-family: 'Syne', sans-serif; }
+  .tab.active { color: var(--text); border-bottom-color: var(--text); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .examples-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+  .example-btn { font-size: 11px; font-family: 'JetBrains Mono', monospace; padding: 4px 10px; border: 0.5px solid var(--border2); border-radius: 4px; background: none; color: var(--text2); cursor: pointer; transition: all 0.1s; }
+  .example-btn:hover { background: var(--bg2); color: var(--text); }
+
+  .code-input { width: 100%; min-height: 180px; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 12px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg2); color: var(--text); resize: vertical; outline: none; line-height: 1.6; }
+  .code-input:focus { border-color: var(--border2); }
+
+  .context-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .context-input { flex: 1; font-size: 13px; padding: 8px 12px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg2); color: var(--text); outline: none; font-family: 'Syne', sans-serif; }
+  .context-input::placeholder { color: var(--text3); }
+  .context-input:focus { border-color: var(--border2); }
+
+  .audit-btn { padding: 9px 24px; background: var(--text); color: white; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'Syne', sans-serif; transition: opacity 0.15s; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .audit-btn:hover { opacity: 0.85; }
+  .audit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Output */
+  .score-bar { display: flex; align-items: center; gap: 16px; padding: 16px; background: var(--bg2); border-radius: var(--radius-lg); margin-bottom: 1rem; border: 0.5px solid var(--border); }
+  .score-num { font-size: 40px; font-weight: 600; line-height: 1; min-width: 60px; }
+  .score-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .score-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  .score-label { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .resumen { font-size: 13px; color: var(--text); line-height: 1.6; flex: 1; }
+
+  .section-title { font-size: 11px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); margin-bottom: 10px; margin-top: 1.25rem; }
+
+  .pills-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .count-pill { font-size: 11px; padding: 3px 8px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; }
+
+  .hallazgo { border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; background: var(--bg); }
+  .hallazgo-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; transition: background 0.1s; }
+  .hallazgo-header:hover { background: var(--bg2); }
+  .sev-badge { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
+  .sev-critico { background:#fef2f2;color:#991b1b; }
+  .sev-alto { background:#fff7ed;color:#9a3412; }
+  .sev-medio { background:#fefce8;color:#854d0e; }
+  .sev-bajo { background:#f0fdf4;color:#166534; }
+  .sev-info { background:#eff6ff;color:#1e40af; }
+  .hallazgo-title { font-size: 13px; font-weight: 500; flex: 1; }
+  .cat-tag { font-size: 11px; color: var(--text3); }
+  .chevron { font-size: 10px; color: var(--text3); transition: transform 0.2s; display: inline-block; }
+  .chevron.open { transform: rotate(180deg); }
+
+  .hallazgo-body { padding: 0 14px 14px; display: none; border-top: 0.5px solid var(--border); }
+  .hallazgo-body.open { display: block; padding-top: 12px; }
+  .hallazgo-desc { font-size: 13px; color: var(--text2); line-height: 1.65; margin-bottom: 12px; }
+
+  .code-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .code-label { font-size: 10px; padding: 4px 8px; font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+  .code-label.before { background:#fef2f2;color:#991b1b; }
+  .code-label.after { background:#f0fdf4;color:#166534; }
+  .code-pre { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 10px; background: var(--bg2); white-space: pre-wrap; word-break: break-all; line-height: 1.5; margin: 0; color: var(--text); border: 0.5px solid var(--border); border-top: none; }
+
+  .refactored-wrap { margin-top: 1rem; }
+  .refactored-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .copy-btn { font-size: 11px; font-family: 'JetBrains Mono', monospace; padding: 3px 10px; border: 0.5px solid var(--border2); border-radius: 4px; background: none; color: var(--text2); cursor: pointer; }
+  .copy-btn:hover { background: var(--bg2); color: var(--text); }
+  .refactored-code { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 14px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); white-space: pre-wrap; word-break: break-word; line-height: 1.6; color: var(--text); max-height: 320px; overflow-y: auto; }
+
+  .pregunta-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
+  .pregunta-item:last-child { border-bottom: none; }
+  .pregunta-num { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); min-width: 20px; padding-top: 2px; }
+  .pregunta-text { font-size: 13px; color: var(--text2); line-height: 1.55; }
+
+  .error-msg { padding: 12px 16px; background: #fef2f2; border: 0.5px solid #fca5a5; border-radius: var(--radius); font-size: 13px; color: #991b1b; line-height: 1.5; }
+
+  #output-section { display: none; }
+
+  @media (max-width: 600px) {
+    .code-diff { grid-template-columns: 1fr; }
+    .api-key-note { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="logo">
+      <svg viewBox="0 0 20 20"><path d="M3 4h14v2H3V4zm0 5h9v2H3V9zm0 5h11v2H3v-2z"/><circle cx="16" cy="14" r="3"/><path fill="none" stroke="white" stroke-width="1.5" d="M15 14l.8.8L17.5 13"/></svg>
+    </div>
+    <div>
+      <h1>Auditor SQL / DAX</h1>
+      <p>Code review automatizado · SQL Server · Power BI</p>
+    </div>
+  </div>
+
+  <div class="api-key-bar">
+    <label>API KEY</label>
+    <input type="password" id="api-key" placeholder="sk-ant-api03-..." autocomplete="off"/>
+    <span class="api-key-note">No se guarda ni se envía a ningún servidor propio</span>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('sql')">SQL Server</button>
+      <button class="tab" onclick="switchTab('dax')">DAX · Power BI</button>
+    </div>
+
+    <div id="sql-panel">
+      <div class="examples-row">
+        <span style="font-size:11px;color:var(--text3)">Ejemplos:</span>
+        <button class="example-btn" onclick="loadExample('sql','precedencia')">bug precedencia OR</button>
+        <button class="example-btn" onclick="loadExample('sql','8623')">riesgo error 8623</button>
+        <button class="example-btn" onclick="loadExample('sql','innerjoin')">INNER JOIN implícito</button>
+      </div>
+      <textarea class="code-input" id="sql-input" placeholder="-- Pegá tu query SQL Server acá&#10;SELECT ...&#10;FROM ...&#10;WHERE ..."></textarea>
+      <div class="context-row">
+        <input class="context-input" id="sql-context" placeholder="Contexto opcional: propósito, tablas involucradas..."/>
+        <button class="audit-btn" id="sql-btn" onclick="runAudit('sql')"><span>Auditar</span></button>
+      </div>
+    </div>
+
+    <div id="dax-panel" style="display:none">
+      <div class="examples-row">
+        <span style="font-size:11px;color:var(--text3)">Ejemplos:</span>
+        <button class="example-btn" onclick="loadExample('dax','calculate')">CALCULATE problemático</button>
+        <button class="example-btn" onclick="loadExample('dax','divide')">DIVIDE sin manejo blanks</button>
+      </div>
+      <textarea class="code-input" id="dax-input" placeholder="-- Pegá tu medida o columna calculada DAX acá&#10;MiMedida = CALCULATE(...)"></textarea>
+      <div class="context-row">
+        <input class="context-input" id="dax-context" placeholder="Contexto opcional: modelo de datos, propósito..."/>
+        <button class="audit-btn" id="dax-btn" onclick="runAudit('dax')"><span>Auditar</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="output-section">
+    <div id="output-area"></div>
+  </div>
+
+</div>
+
+<script>
+const EXAMPLES = {
+  sql: {
+    precedencia: {
+      code: `-- Vista Consolidado_Saldos_Deudores - filtro exclusión zentenio\nSELECT \n    f.IdEmpresa, f.NroFactura, f.FechaEmision, f.ImporteTotal, c.RazonSocial\nFROM Facturas f\n    INNER JOIN Clientes c ON f.IdCliente = c.IdCliente\nWHERE f.FechaEmision >= '2024-01-01'\n    AND f.Anulada = 0\n    AND f.IdEmpresa != 99\n    OR f.TipoComprobante != 'NC'\n    AND f.Estado = 'PENDIENTE'`,
+      context: 'Filtro para excluir zentenio (empresa interna ID=99) de la vista de saldos deudores'
+    },
+    '8623': {
+      code: `WITH FacturasBase AS (\n    SELECT f.*, d.IdLaboratorio, d.Cantidad * d.ImporteVentaSinIVA_cDcto AS ImporteLab\n    FROM Facturas f INNER JOIN DetalleFactura d ON f.NroFactura = d.NroFactura AND f.IdEmpresa = d.IdEmpresa\n    WHERE f.Anulada = 0 AND f.TipoComprobante = 'FA'\n),\nNotasCredito AS (\n    SELECT nc.*, d.IdLaboratorio, dbo.fn_ImporteNC(d.NroNC, d.IdEmpresa, d.IdLaboratorio) AS ImporteNCLab\n    FROM NotasCredito nc INNER JOIN DetalleNC d ON nc.NroNC = d.NroNC AND nc.IdEmpresa = d.IdEmpresa\n    WHERE nc.Anulada = 0\n),\nImputacionPEPS AS (\n    SELECT f.NroFactura, f.IdEmpresa, f.IdLaboratorio, nc.NroNC, nc.ImporteNCLab,\n           ROW_NUMBER() OVER (PARTITION BY f.NroFactura, f.IdEmpresa, f.IdLaboratorio ORDER BY f.FechaEmision) AS rn\n    FROM FacturasBase f\n    LEFT JOIN NotasCredito nc ON f.IdCliente = nc.IdCliente AND f.IdEmpresa = nc.IdEmpresa\n),\nSaldosConNC AS (\n    SELECT p.NroFactura, p.IdEmpresa, p.IdLaboratorio,\n           SUM(CASE WHEN p.rn = 1 THEN p.ImporteNCLab ELSE 0 END) AS TotalNCImputado\n    FROM ImputacionPEPS p GROUP BY p.NroFactura, p.IdEmpresa, p.IdLaboratorio\n),\nSaldoFinal AS (\n    SELECT f.NroFactura, f.IdEmpresa, f.IdLaboratorio,\n           f.ImporteLab - ISNULL(s.TotalNCImputado, 0) AS SaldoPendiente\n    FROM FacturasBase f\n    LEFT JOIN SaldosConNC s ON f.NroFactura = s.NroFactura AND f.IdEmpresa = s.IdEmpresa AND f.IdLaboratorio = s.IdLaboratorio\n)\nSELECT * FROM SaldoFinal WHERE SaldoPendiente > 0`,
+      context: 'Vista dev.Saldos_x_Laboratorio con lógica PEPS. Falla con error 8623 en producción.'
+    },
+    innerjoin: {
+      code: `SELECT f.NroFactura, f.FechaEmision, f.ImporteTotal, nc.NroNC, nc.ImporteNC, c.RazonSocial\nFROM Facturas f\nLEFT JOIN NotasCredito nc ON f.IdCliente = nc.IdCliente AND f.IdEmpresa = nc.IdEmpresa\nLEFT JOIN Clientes c ON f.IdCliente = c.IdCliente\nWHERE f.Anulada = 0\n    AND f.TipoComprobante = 'FA'\n    AND nc.FechaEmision >= '2024-01-01'\n    AND nc.Anulada = 0`,
+      context: 'Busca facturas con sus NC. Se esperan todas las facturas aunque no tengan NC asociada.'
+    }
+  },
+  dax: {
+    calculate: {
+      code: `CobrosPendientes = \nCALCULATE(\n    SUM(Cobros[Importe]),\n    FILTER(\n        Cobros,\n        Cobros[Estado] = "PENDIENTE" &&\n        Cobros[FechaVencimiento] <= TODAY()\n    ),\n    Clientes[TipoCliente] = "ACTIVO"\n)`,
+      context: 'Medida del modelo Zentenio. Ignora el filtro de TipoCliente en algunos contextos de visualización.'
+    },
+    divide: {
+      code: `VariacionVentas% = \nDIVIDE(\n    [VentasMesActual] - [VentasMesAnterior],\n    [VentasMesAnterior]\n) * 100`,
+      context: 'Dashboard Compras Valorizadas. Muestra BLANK en meses sin ventas históricas en vez de 0 o -100%.'
+    }
+  }
+};
+
+const SQL_SYSTEM = `Sos un senior SQL Server developer y DBA con 15+ años de experiencia. Analizás queries SQL Server para detectar bugs, anti-patterns y riesgos de performance.
+
+Detectá específicamente:
+1. PRECEDENCIA OR/AND sin paréntesis que cambian la lógica esperada
+2. INNER JOIN IMPLÍCITO: LEFT JOIN anulado por filtros en WHERE sobre tabla derecha
+3. RIESGO ERROR 8623: CTEs anidadas excesivas, complejidad que agota recursos del query processor
+4. FUNCIONES ESCALARES en SELECT (ej: dbo.fn_*) que rompen paralelización
+5. SELECT * en views o queries productivas
+6. CONVERSIONES IMPLÍCITAS de tipos especialmente fechas
+7. NOLOCK problemático
+8. SUBQUERIES CORRELACIONADAS que deberían ser JOINs
+
+Respondé ÚNICAMENTE con JSON válido sin texto adicional ni backticks markdown. Estructura exacta:
+{"resumen_ejecutivo":"string","score_calidad":75,"hallazgos":[{"severidad":"critico","categoria":"logica","titulo":"string","descripcion":"string","ejemplo_actual":"fragmento","ejemplo_corregido":"corrección"}],"codigo_refactorizado":"query completa corregida","preguntas_para_el_desarrollador":["pregunta"]}`;
+
+const DAX_SYSTEM = `Sos un experto en DAX y modelado Power BI con 10+ años de experiencia. Analizás medidas y columnas calculadas DAX.
+
+Detectá específicamente:
+1. CALCULATE con filtros conflictivos o mal anidados
+2. Context transition no intencionado
+3. FILTER sobre tablas completas en vez de predicado directo en CALCULATE
+4. DIVIDE sin tercer argumento para denominador cero/blank
+5. Medidas que devuelven BLANK cuando deberían 0
+6. ALL/ALLEXCEPT/REMOVEFILTERS mal aplicados
+7. Iteradores sobre tablas grandes innecesariamente
+8. Dependencia de relaciones inactivas sin USERELATIONSHIP
+
+Respondé ÚNICAMENTE con JSON válido sin texto adicional ni backticks markdown. Estructura exacta:
+{"resumen_ejecutivo":"string","score_calidad":75,"hallazgos":[{"severidad":"critico","categoria":"logica","titulo":"string","descripcion":"string","ejemplo_actual":"fragmento","ejemplo_corregido":"corrección"}],"codigo_refactorizado":"medida corregida completa","preguntas_para_el_desarrollador":["pregunta"]}`;
+
+const SEV_COLORS = {
+  critico:{bg:'#fef2f2',text:'#991b1b'},
+  alto:{bg:'#fff7ed',text:'#9a3412'},
+  medio:{bg:'#fefce8',text:'#854d0e'},
+  bajo:{bg:'#f0fdf4',text:'#166534'},
+  info:{bg:'#eff6ff',text:'#1e40af'}
+};
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active',(i===0&&tab==='sql')||(i===1&&tab==='dax')));
+  document.getElementById('sql-panel').style.display = tab==='sql'?'block':'none';
+  document.getElementById('dax-panel').style.display = tab==='dax'?'block':'none';
+  document.getElementById('output-section').style.display = 'none';
+}
+
+function loadExample(type, key) {
+  const ex = EXAMPLES[type][key];
+  document.getElementById(type+'-input').value = ex.code;
+  document.getElementById(type+'-context').value = ex.context;
+}
+
+function toggleH(id) {
+  const b = document.getElementById('b'+id), c = document.getElementById('c'+id);
+  const open = b.classList.toggle('open');
+  c.classList.toggle('open', open);
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function scoreColor(s) { return s>=75?'#2d7d46':s>=50?'#b45309':'#b91c1c'; }
+function scoreLabel(s) { return s>=80?'Buena calidad':s>=60?'Revisión recomendada':s>=40?'Problemas significativos':'Requiere refactorización'; }
+
+function renderOutput(data) {
+  const { resumen_ejecutivo, score_calidad, hallazgos=[], codigo_refactorizado, preguntas_para_el_desarrollador=[] } = data;
+  const sc = Number(score_calidad)||0;
+  const col = scoreColor(sc);
+
+  const counts = {};
+  hallazgos.forEach(h => { counts[h.severidad]=(counts[h.severidad]||0)+1; });
+  const pills = ['critico','alto','medio','bajo','info'].filter(s=>counts[s]).map(s => {
+    const c = SEV_COLORS[s]||{bg:'#f1f5f9',text:'#475569'};
+    return `<span class="count-pill" style="background:${c.bg};color:${c.text}">${counts[s]} ${s}</span>`;
+  }).join('');
+
+  const hHTML = hallazgos.map((h,i) => `
+    <div class="hallazgo">
+      <div class="hallazgo-header" onclick="toggleH(${i})">
+        <span class="sev-badge sev-${h.severidad||'info'}">${h.severidad||'info'}</span>
+        <span class="hallazgo-title">${esc(h.titulo)}</span>
+        <span class="cat-tag">${esc(h.categoria)}</span>
+        <span class="chevron" id="c${i}">▼</span>
+      </div>
+      <div class="hallazgo-body" id="b${i}">
+        <p class="hallazgo-desc">${esc(h.descripcion)}</p>
+        ${h.ejemplo_actual ? `
+        <div class="code-diff">
+          <div>
+            <div class="code-label before">❌ Actual</div>
+            <pre class="code-pre">${esc(h.ejemplo_actual)}</pre>
+          </div>
+          <div>
+            <div class="code-label after">✓ Corregido</div>
+            <pre class="code-pre">${esc(h.ejemplo_corregido||'')}</pre>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>`).join('');
+
+  const pHTML = preguntas_para_el_desarrollador.map((p,i) =>
+    `<div class="pregunta-item"><span class="pregunta-num">${i+1}.</span><span class="pregunta-text">${esc(p)}</span></div>`
+  ).join('');
+
+  document.getElementById('output-area').innerHTML = `
+    <div class="card">
+      <div class="score-bar">
+        <div>
+          <div class="score-num" style="color:${col}">${sc}</div>
+          <div class="score-label">${scoreLabel(sc)}</div>
+        </div>
+        <div style="flex:1">
+          <p class="resumen">${esc(resumen_ejecutivo)}</p>
+          <div class="score-track">
+            <div class="score-fill" style="width:${sc}%;background:${col}"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">Hallazgos · ${hallazgos.length} total</div>
+      <div class="pills-row">${pills}</div>
+      ${hHTML}
+
+      ${codigo_refactorizado ? `
+      <div class="refactored-wrap">
+        <div class="refactored-header">
+          <div class="section-title" style="margin:0">Código refactorizado</div>
+          <button class="copy-btn" onclick="copyCode()">copiar</button>
+        </div>
+        <pre class="refactored-code" id="ref-code">${esc(codigo_refactorizado)}</pre>
+      </div>` : ''}
+
+      ${pHTML ? `
+      <div style="margin-top:1rem">
+        <div class="section-title">Preguntas para el desarrollador</div>
+        ${pHTML}
+      </div>` : ''}
+    </div>`;
+
+  document.getElementById('output-section').style.display = 'block';
+  document.getElementById('output-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function copyCode() {
+  const pre = document.getElementById('ref-code');
+  if (pre) navigator.clipboard.writeText(pre.textContent).catch(()=>{});
+  const b = document.querySelector('.copy-btn');
+  if (b) { b.textContent='✓ copiado'; setTimeout(()=>b.textContent='copiar', 1500); }
+}
+
+async function runAudit(type) {
+  const apiKey = document.getElementById('api-key').value.trim();
+  if (!apiKey) {
+    alert('Ingresá tu API key de Anthropic primero.');
+    return;
+  }
+  const code = document.getElementById(type+'-input').value.trim();
+  if (!code) {
+    alert('Pegá código para auditar.');
+    return;
+  }
+
+  const ctx = document.getElementById(type+'-context').value.trim();
+  const btn = document.getElementById(type+'-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div><span>Auditando...</span>';
+
+  const system = type === 'sql' ? SQL_SYSTEM : DAX_SYSTEM;
+  const userMsg = ctx ? `Contexto: ${ctx}\n\nCódigo:\n${code}` : `Código:\n${code}`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        system,
+        messages: [{ role: 'user', content: userMsg }]
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(()=>({}));
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    const raw = (data.content||[]).map(b=>b.text||'').join('');
+    const clean = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+    const parsed = JSON.parse(clean);
+    renderOutput(parsed);
+
+  } catch(err) {
+    document.getElementById('output-section').style.display = 'block';
+    document.getElementById('output-area').innerHTML =
+      `<div class="error-msg">Error: ${esc(err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>Auditar</span>';
+  }
+}
+</script>
+</body>
+</html>
